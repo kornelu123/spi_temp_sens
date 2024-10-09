@@ -25,6 +25,7 @@ clean:
 	rm -Rf reports/* > /dev/null
 	rm -Rf *.txt > /dev/null
 	rm -Rf *.bit > /dev/null
+	rm -Rf reports
 
 synth:
 	vivado -mode batch -script tcl/synth.tcl
