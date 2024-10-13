@@ -1,9 +1,9 @@
-V_SRCS := hdl/top.v hdl/sim_top.v
+V_SRCS := hdl/top.v hdl/sim_top.v hdl/spi.sv hdl/timer.sv
 SIM_TOP := sim_top
 SIM_SNAPSHOT := sim_snapshot
 
 .xvlog: $(V_SRCS)
-	xvlog $(V_SRCS)
+	xvlog -sv $(V_SRCS) hdl/test_benches/*
 
 .xelab: .xvlog
 	xelab -debug typical -top $(SIM_TOP) -snapshot $(SIM_SNAPSHOT)
@@ -24,9 +24,9 @@ clean:
 	rm -Rf *.dcp  > /dev/null
 	rm -Rf reports/* > /dev/null
 	rm -Rf *.txt > /dev/null
+	rm -Rf *.bit > /dev/null
 
 synth:
-	mkdir reports
 	vivado -mode batch -script tcl/synth.tcl
 
 impl:
