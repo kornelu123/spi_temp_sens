@@ -1,3 +1,4 @@
+// Range of termperatures will vary from 0 to 100 degres of Celcius
 module sim_top;
     reg clk;
     reg reset;

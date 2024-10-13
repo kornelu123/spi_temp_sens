@@ -1,0 +1,39 @@
+#-----------------------------------------------------------
+# xsim v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Wed Oct  9 18:13:45 2024
+# Process ID: 21976
+# Current directory: /home/ciamcio/workspace/FPGA/spi_temp_sens
+# Command line: xsim -mode tcl -source {xsim.dir/sim_snapshot/xsim_script.tcl}
+# Log file: /home/ciamcio/workspace/FPGA/spi_temp_sens/xsim.log
+# Journal file: /home/ciamcio/workspace/FPGA/spi_temp_sens/xsim.jou
+# Running On        :dellg15jm
+# Platform          :Debian
+# Operating System  :Debian GNU/Linux 12 (bookworm)
+# Processor Detail  :AMD Ryzen 5 5600H with Radeon Graphics
+# CPU Frequency     :3995.669 MHz
+# CPU Physical cores:6
+# CPU Logical cores :12
+# Host memory       :16079 MB
+# Swap memory       :1024 MB
+# Total Virtual     :17103 MB
+# Available Virtual :13468 MB
+#-----------------------------------------------------------
+source xsim.dir/sim_snapshot/xsim_script.tcl
+# xsim {sim_snapshot} -autoloadwcfg -tclbatch {tcl/sim.tcl}
+Time resolution is 1 ps
+source tcl/sim.tcl
+## log_wave -recursive *
+## run 1ms
+Time: 30000 | Applied d_in = 00000064
+Time: 30000 | Applied d_in =        100
+Time: 50000 | Applied d_in = 00000000
+Time: 50000 | Applied d_in =          0
+Time: 80000 | Applied d_in = 00000044
+Time: 80000 | Applied d_in =         68
+Simulation ending
+$stop called at time : 180 ns : File "/home/ciamcio/workspace/FPGA/spi_temp_sens/hdl/sim_top.v" Line 32
+## exit
+INFO: [Common 17-206] Exiting xsim at Wed Oct  9 18:13:47 2024...

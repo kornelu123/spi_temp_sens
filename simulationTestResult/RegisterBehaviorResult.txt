@@ -1,0 +1,47 @@
+xvlog hdl/top.v hdl/sim_top.v
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/ciamcio/workspace/FPGA/spi_temp_sens/hdl/top.v" into library work
+INFO: [VRFC 10-311] analyzing module top
+INFO: [VRFC 10-311] analyzing module simple_register
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/ciamcio/workspace/FPGA/spi_temp_sens/hdl/sim_top.v" into library work
+INFO: [VRFC 10-311] analyzing module sim_top
+xelab -debug typical -top sim_top -snapshot sim_snapshot
+Vivado Simulator v2024.1
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+Running: /home/ciamcio/vivado/Vivado/2024.1/bin/unwrapped/lnx64.o/xelab -debug typical -top sim_top -snapshot sim_snapshot 
+Multi-threading is on. Using 14 slave threads.
+Starting static elaboration
+Pass Through NonSizing Optimizer
+Completed static elaboration
+Starting simulation data flow analysis
+Completed simulation data flow analysis
+Time Resolution for simulation is 1ps
+Compiling module work.top
+Compiling module work.sim_top
+Built simulation snapshot sim_snapshot
+xsim sim_snapshot --tclbatch tcl/sim.tcl
+
+****** xsim v2024.1 (64-bit)
+  **** SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+  **** IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+  **** SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+  **** Start of session at: Wed Oct  9 18:14:57 2024
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source xsim.dir/sim_snapshot/xsim_script.tcl
+# xsim {sim_snapshot} -autoloadwcfg -tclbatch {tcl/sim.tcl}
+Time resolution is 1 ps
+source tcl/sim.tcl
+## log_wave -recursive *
+## run 1ms
+Time: 30000 | Applied d_in = 00000064
+Time: 30000 | Applied d_in =        100
+Time: 50000 | Applied d_in = 00000000
+Time: 50000 | Applied d_in =          0
+Time: 80000 | Applied d_in = 00000044
+Time: 80000 | Applied d_in =         68
+Simulation ending
+$stop called at time : 180 ns : File "/home/ciamcio/workspace/FPGA/spi_temp_sens/hdl/sim_top.v" Line 32
+## exit
+INFO: [Common 17-206] Exiting xsim at Wed Oct  9 18:14:59 2024...

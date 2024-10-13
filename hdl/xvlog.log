@@ -1,2 +1,3 @@
-INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/vG1PJiO/11/top.v" into library work
-INFO: [VRFC 10-311] analyzing module top
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/viiwgR2/10/sim_top.v" into library work
+INFO: [VRFC 10-311] analyzing module sim_top
+ERROR: [VRFC 10-4982] syntax error near '>>>' [/tmp/viiwgR2/10/sim_top.v:36]
