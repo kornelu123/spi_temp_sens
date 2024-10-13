@@ -17,4 +17,4 @@ report_timing_summary -file reports/route_timings.txt
 report_utilization -file reports/utilization_final.txt
 report_power -file reports/power.txt
 
-write_bitstream spin_screen
+write_bitstream spi_temp_sens
