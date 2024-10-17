@@ -1,3 +1,5 @@
-INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/v7bYy7F/2/top.v" into library work
-INFO: [VRFC 10-311] analyzing module top
-INFO: [VRFC 10-311] analyzing module simple_register
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/vhqFtaU/2/spi_tb.sv" into library work
+INFO: [VRFC 10-311] analyzing module spi_tb
+ERROR: [VRFC 10-2989] 'clk' is not declared [/tmp/vhqFtaU/2/spi_tb.sv:42]
+ERROR: [VRFC 10-1280] procedural assignment to a non-register start_trans is not permitted, left-hand side should be reg/integer/time/genvar [/tmp/vhqFtaU/2/spi_tb.sv:56]
+ERROR: [VRFC 10-8530] module 'spi_tb' is ignored due to previous errors [/tmp/vhqFtaU/2/spi_tb.sv:1]
