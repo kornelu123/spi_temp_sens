@@ -1,4 +1,4 @@
-V_SRCS := hdl/top.v hdl/sim_top.v hdl/spi.sv hdl/timer.sv
+V_SRCS := hdl/top.v hdl/sim_top.v hdl/spi.sv hdl/timer.sv hdl/presc.sv
 SIM_TOP := sim_top
 SIM_SNAPSHOT := sim_snapshot
 

@@ -1,8 +1,15 @@
 module top(
   input btn_0,
-  output led_0
+  input wire sys_clk_pin,
+
+  output led_0,
+  output phy_sck
 );
 
-assign led_0 = btn_0;
+timer     tim0
+          (
+            .clk_in(sys_clk_pin),
+            .sig_out(led_0)
+          );
 
 endmodule
