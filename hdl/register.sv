@@ -22,9 +22,6 @@ always @(posedge new_data) begin
     out[11:8] = temp%10;
     temp = temp/10;
     out[15:12] = temp%10;
-    // for(i=0; i<16; i=i+4) begin
-    //    out[i+3:i] <= d_in%10;
-    //    d_in <= d_in/10;
 end
 
 
