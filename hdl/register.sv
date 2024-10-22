@@ -1,27 +1,33 @@
 module SPI_register (
-    input wire clk,
-    input wire reset,
-    input wire [24:0] in,
-    output wire [24:0] out
+    input wire new_data,
+    input wire [23:0] in,
+    output reg [15:0] out
 );
 
-reg [24:0] d_in;
+reg [15:0] d_in;
+integer i, temp;
 
-always @(posedge clk) begin
-    d_in <= in;
+initial begin
+    i <= 1'b0;
+    out <= 16'b0;
 end
 
-always @(posedge clk) begin
-    if (reset) begin
-        d_in <= 32'b0;
-    end
+always @(posedge new_data) begin
+    d_in <= in[23:8];
+    temp = d_in;
+    out[3:0] = temp%10;
+    temp = temp/10;
+    out[7:4] = temp%10;
+    temp = temp/10;
+    out[11:8] = temp%10;
+    temp = temp/10;
+    out[15:12] = temp%10;
+    // for(i=0; i<16; i=i+4) begin
+    //    out[i+3:i] <= d_in%10;
+    //    d_in <= d_in/10;
 end
 
-SPI_register data_register (
-    .clk(clk),
-    .reset(reset),
-    .d_in(d_in),
-    .d_out(d_out)
-);
+
 
 endmodule
+
