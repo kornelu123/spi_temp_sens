@@ -1,1 +1,0 @@
--debug "typical" -top "sim_top" -snapshot "sim_snapshot" 
