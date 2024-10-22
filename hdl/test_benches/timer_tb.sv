@@ -4,7 +4,7 @@ reg clk;
 wire sig; 
 
 timer #(
-          .clk_per_s(10)
+          .time_ms(1)
         )
         tim0 
         ( 
@@ -16,7 +16,9 @@ integer i;
 
 task test_timer();
   begin
-    for(i=0; i<40; i=i+1) begin
+    for(i=0; i<123400*3; i=i+1) begin
+      clk = ~clk;
+      #10;
       clk = ~clk;
       #10;
     end
