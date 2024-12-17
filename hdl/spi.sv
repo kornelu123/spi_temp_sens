@@ -1,118 +1,150 @@
-module spi_t
-  (
-    input wire sck_in,
+module spi
+(
+  input reg sck_in,
 
-    input wire miso,
-    output reg sck_out,
-    output reg mosi,
-    output reg cs,
+  input wire miso,
+  output reg sck_out,
+  output reg mosi,
+  output reg cs,
 
-    input wire [1:0]in_bytes_count,
-    input wire [1:0]out_bytes_count,
+  input wire [3:0]in_bytes_count,
+  input wire [3:0]out_bytes_count,
 
-    input wire [15:0]in_bytes,
-    output reg [31:0]out_bytes,
+  input wire [31:0]in_bytes,
+  output reg [31:0]out_bytes,
 
-    input wire start_trans,
-    output reg trans_done
+  input wire start_trans,
+  output reg trans_done
   );
 
-reg [1:0]cur_state;
 
-reg [1:0]in_bytes_counter;
-reg [1:0]out_bytes_counter;
+  localparam idle         = 3'b000;
+  localparam trans_write  = 3'b001;
+  localparam trans_read   = 3'b010;
+  localparam trans_beg    = 3'b011;
+  localparam trans_end    = 3'b100;
+  localparam trans_inter  = 3'b101;
 
-reg [2:0]bit_count;
+  reg [2:0] cur_state;
 
-localparam idle         = 3'b000;
-localparam trans_start  = 3'b001;
-localparam trans_write  = 3'b010;
-localparam trans_read   = 3'b011;
-localparam trans_end    = 3'b100;
+  reg [2:0] bit_counter;
 
-initial begin
-  trans_done <= 1'b0;
+  wire end_req;
+  reg old_start;
 
-  out_bytes   <= 32'h00000000;
+  reg [2:0] next_state;
 
-  cs         <= 1'b1;
-  mosi       <= 1'b0;
-  sck_out    <= 1'b1;
+  reg [3:0] in_bytes_counter;
+  reg [3:0] out_bytes_counter;
 
-  bit_count  <= 3'h7;
+  reg en_out;
 
-  in_bytes_counter    <= 2'b00;
-  out_bytes_counter   <= 2'b00;
-end
+  initial begin
+    cs            <= 1'b1;
+    sck_out       <= 1'b1;
+    mosi          <= 1'b0;
 
-always @(edge start_trans) begin
-  if (cur_state == idle) begin
-    cur_state = trans_start;
+    out_bytes     <= 32'h00000000;
+
+    old_start     <= 1'b0;
+
+    bit_counter   <= 3'b111;
+
+    cur_state     <= idle;
+    next_state    <= idle;
+
+    in_bytes_counter  <= 0;
+    out_bytes_counter <= 0;
+
+    trans_done    <= 1'b1;
+
+    en_out        <= 1'b1;
   end
-end
 
-always @(edge sck_in) begin
-  if (cur_state == trans_write || cur_state == trans_read) begin
-    sck_out <= sck_in;
-  end
+  assign sck_out = ((en_out == 1'b0) ? sck_in : 1'b1);
 
-  if (cur_state == trans_start) begin
-    if(sck_in == 1'b0) begin
-      cs <= 1'b0;
+always @(posedge sck_in) begin
+  case (cur_state)
+  idle :
+    begin
+      if (old_start != start_trans) begin
+        old_start     <= start_trans;
+        next_state    <= trans_beg;
 
-      in_bytes_counter  <= in_bytes_count;
-      out_bytes_counter <= out_bytes_count;
+        in_bytes_counter    <= in_bytes_count;
+        out_bytes_counter   <= out_bytes_count;
 
-      bit_count <= 3'h7;
-    end else if (cs == 1'b0) begin
-      cur_state = trans_write;
+        trans_done          <= 1'b0;
+      end
+
+      cs <= 1'b1;
     end
-  end
+  trans_beg :
+      begin
+        cs          <= 1'b0;
+        en_out      <= 1'b0;
 
-  if (cur_state == trans_write) begin
-    if (sck_in == 1'b0) begin
-      mosi <= in_bytes[(out_bytes_counter - 1)*8 + bit_count];
-
-      if (bit_count == 3'b000) begin
-        bit_count <= 3'h7;
-
+        next_state  = trans_write;
+      end
+  trans_write :
+    begin
+      if (in_bytes_counter == 0) begin
         if (out_bytes_counter == 0) begin
+          bit_counter = 3'b111;
+
+          next_state = trans_end;
+        end else begin
+          bit_counter = 3'b111;
+
+          next_state = trans_read;
+        end
+      end else begin
+        if (bit_counter == 3'b000) begin
+          bit_counter = 3'b111;
+
+          in_bytes_counter = in_bytes_counter - 1;
+
           if (in_bytes_counter == 0) begin
-            cur_state <= trans_end;
-          end else begin
-            cur_state <= trans_read;
+            bit_counter = 3'b111;
+  
+            next_state = trans_read;
           end
         end else begin
-          out_bytes_counter <= out_bytes_counter - 1;
+          bit_counter = bit_counter - 1;
         end
-      end else begin
-        bit_count <= bit_count - 1;
       end
     end
-  end
-
-  if (cur_state == trans_read) begin
-    if (sck_in == 1'b1) begin
-      out_bytes[(in_bytes_counter - 1)*8 + bit_count] <= miso;
-
-      if (bit_count == 3'b000) begin
-        if (in_bytes_counter == 0) begin
-          cur_state     <= trans_end;
-          trans_done    <= 1'b1;
+  trans_read :
+    begin
+      out_bytes[(out_bytes_counter - 1)*8 + bit_counter] <= miso;
+      if (out_bytes_counter == 2'b00) begin
+        next_state  = trans_end;
+      end else begin
+        if (bit_counter == 3'b000) begin
+          bit_counter = 3'b111;
+          out_bytes_counter = out_bytes_counter - 1;
         end else begin
-          in_bytes_counter <= in_bytes_counter - 1;
+          bit_counter = bit_counter - 1;
         end
-      end else begin
-        bit_count <= bit_count - 1;
       end
     end
-  end
+  trans_end :
+     begin
+       if (sck_in == 1'b1) begin
+         next_state = idle;
 
-  if (cur_state == trans_end) begin
-    cs          <= 1'b1;
-    sck_out     <= 1'b1;
-    cur_state   <= idle;
-    trans_done  <= 1'b0;
+         en_out     <= 1'b1;
+         trans_done <= 1'b1;
+       end
+     end
+  endcase
+
+  cur_state <= next_state;
+end
+
+always @(negedge sck_in) begin
+  if (cur_state == trans_write) begin
+    mosi <= in_bytes[(in_bytes_counter - 1)*8 + bit_counter];
   end
 end
 

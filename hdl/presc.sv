@@ -1,25 +1,25 @@
 module presc(
-              input wire clk_in,
-              output reg clk_out
+              input wire clk_in_p,
+              output reg clk_out_p
             );
 
-parameter value = 128;
+parameter value = 65535;
 
 localparam bit_count = $clog2(value);
 
-reg [bit_count-1:0]count;
+reg [bit_count:0]count;
 
 initial begin
-  count = 0;
-  clk_out <= 1'b0;
+  count       <= 0;
+  clk_out_p   <= 1'b0;
 end
 
-always @(edge clk_in) begin
-  if(count == (value - 1)) begin
-    count = 0;
-    clk_out = ~clk_out;
-  end else begin
+always @(posedge clk_in_p) begin
+  if(count < (value/2)) begin
     count = count + 1;
+  end else begin
+    count = 0;
+    clk_out_p = ~clk_out_p;
   end
 end
 

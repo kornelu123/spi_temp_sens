@@ -5,11 +5,11 @@ module timer (
 
 parameter time_ms = 1000;
 
-localparam clk_per_s = 123400000;
-localparam reset_count = (clk_per_s*time_ms)/1000;
+localparam clk_per_ms = 180000;
+localparam reset_count = (clk_per_ms*time_ms);
 localparam bit_count = $clog2(reset_count);
 
-reg [bit_count-1:0]counter;
+reg [bit_count:0]counter;
 
 initial begin
   counter <= 0;
