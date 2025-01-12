@@ -5,14 +5,14 @@ module counter(
     );
 
     initial begin
-        count[23:0] <= 24'h100;
+        count[23:0] <= 24'h000;
     end
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            count <= 24'h100; // Reset count to 0
+            count <= 24'h000; // Reset count to 0
         end else if (count == 24'd999900) begin
-            count <= 24'h100;
+            count <= 24'h000;
         end else begin
             count <= count + 1; // Increment count
         end

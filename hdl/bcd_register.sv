@@ -27,7 +27,7 @@ module bcd_register (
     * on posedge
     */
     always @(posedge new_data_triger) begin
-        spi_data_reg <= spi_data[23:8];
+        spi_data_reg <= spi_data[15:0];
 
         bcd_values_reg[3:0] = spi_data_reg%10;
         spi_data_reg = spi_data_reg/10;
