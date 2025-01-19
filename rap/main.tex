@@ -1,0 +1,529 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{adjustbox}
+\usepackage[T1]{fontenc}
+\geometry{margin=1in}
+\title{Układy cyfrowe i systemy wbudowane \newline Projekt czujnika temperatury}
+\author{Kornel Uriasz 272967 \newline Jakub Maciocha <mehiko>}
+\date{18.01.25r}
+
+\begin{document}
+
+\maketitle
+
+\section{Cel projektu}
+Celem projektu jest zaprojektowanie systemu pomiaru temperatury, który wykorzystuje czujnik MAX31856 i termoparę typu K. System sterowany jest przez układ FPGA Arty Z7-20 i prezentuje zmierzoną temperaturę na wyświetlaczu 7-segmentowym.
+
+\section{Komponenty projektu}
+\begin{itemize}
+    \item \textbf{FPGA Arty Z7-20}: Układ FPGA realizujący komunikację SPI z czujnikiem i sterujący wyświetlaczem 7-segmentowym.
+    \item \textbf{Adafruit MAX31856}: Precyzyjny czujnik temperatury obsługujący różne typy termopar, komunikujący się przez interfejs SPI.
+    \item \textbf{Termopara typu K}: Czujnik temperatury generujący sygnał napięciowy proporcjonalny do temperatury.
+    \item \textbf{Wyświetlacz 7-segmentowy}: Urządzenie wyświetlające zmierzoną temperaturę w formacie liczbowym.
+    \item \textbf{Zasilanie i okablowanie}: Dodatkowe elementy niezbędne do funkcjonowania systemu.
+\end{itemize}
+
+\section{Architektura systemu}
+System składa się z następujących modułów:
+\begin{enumerate}
+    \item \textbf{Moduł SPI}: Realizuje komunikację między FPGA a czujnikiem ADAFRUIT MAX31856, obsługując wysyłanie i odbieranie danych.
+    \item \textbf{Moduł przetwarzania danych}: Konwertuje 2-bajtowe dane odczytane z czujnika na wartość temperatury w BCD , uwzględniając kompensację zimnego końca.
+    \item \textbf{Sterownik wyświetlacza 7-segmentowego}: Zarządza wyświetlaniem wartości temperatury, konwertując dane na format dziesiętny.
+    \item \textbf{Główna maszyna stanów}: Realizuje logikę sterującą, cykliczny odczyt danych i ich wyświetlanie.
+\end{enumerate}
+
+\section{Schemat działania}
+\begin{enumerate}
+    \item \textbf{Pomiar temperatury}: Czujnik MAX31856 odczytuje sygnał z termopary typu K i konwertuje go na wartość cyfrową za pomocą wbudowanego przetwornika ADC.
+    \item \textbf{Odczyt danych przez FPGA}: FPGA inicjuje komunikację przez SPI i odczytuje rejestry z wartością temperatury.
+    \item \textbf{Przetwarzanie danych}: Dane z czujnika są konwertowane na postać dziesiętną (np. 25\(^\circ C\)).
+    \item \textbf{Wyświetlanie temperatury}: FPGA steruje wyświetlaczem 7-segmentowym, prezentując zmierzoną wartość w czasie rzeczywistym.
+\end{enumerate}
+
+\section{Opis kodu transmisji SPI}
+
+\subsection*{Wejścia Wyjścia}
+Moduł \texttt{spi.sv} odpowiada za implementację interfejsu SPI w trybie master, umożliwiającego komunikację z czujnikiem temperatury. Główne funkcje modułu obejmują:
+
+\begin{itemize}
+    \item Generowanie sygnałów zegarowych SPI (SCK).
+    \item Obsługę linii danych MOSI (Master Out Slave In) i MISO (Master In Slave Out).
+    \item Zarządzanie sygnałem wyboru układu (CS\_N).
+    \item Obsługę rejestrów przesuwających do wysyłania i odbierania danych.
+\end{itemize}
+
+Moduł przyjmuje następujące wejścia i wyjścia:
+\begin{itemize}
+    \item \textbf{Wejścia}:
+    \begin{itemize}
+        \item \texttt{clk}: Główny zegar systemowy FPGA.
+        \item \texttt{reset}: Sygnał resetujący moduł.
+        \item \texttt{in\_bytes}: Dane do wysłania przez SPI.
+        \item \texttt{in\_bytes\_count}: Dane do wysłania przez SPI.
+        \item \texttt{trans\_beg}: Sygnał rozpoczynający transmisję.
+        \item \texttt{miso}: Dane odbierane z urządzenia slave.
+    \end{itemize}
+    \item \textbf{Wyjścia}:
+    \begin{itemize}
+        \item \texttt{out\_bytes\_count}: Otrzymane dane z urządzenia slave.
+        \item \texttt{trans\_done}: Flaga sygnalizująca finalizacje transakcji.
+        \item \texttt{cs\_n}: Sygnał wyboru układu.
+        \item \texttt{sck}: Sygnał zegarowy SPI.
+        \item \texttt{mosi}: Dane wysyłane do urządzenia slave.
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Inicljalizacja stanów wewnętrznych}
+\begin{lstlisting}[language=verilog]
+initial begin
+    cs            <= 1'b1;
+    sck_out       <= 1'b1;
+    mosi          <= 1'b0;
+
+    out_bytes     <= 32'h00000000;
+
+    old_start     <= 1'b0;
+
+    bit_counter   <= 3'b111;
+
+    cur_state     <= idle;
+    next_state    <= idle;
+
+    in_bytes_counter  <= 0;
+    out_bytes_counter <= 0;
+
+    trans_done    <= 1'b1;
+
+    en_out        <= 1'b1;
+end
+\end{lstlisting}
+
+W tej sekcji zwyczajnie inicjalizujemy wszystkie sygnaly we/wy oraz wewnętrzne na wartości domyślne.
+
+\subsection*{Maszyna stanów transakcji SPI}
+
+\begin{lstlisting}[language=verilog]
+  localparam idle         = 3'b000;
+  localparam trans_write  = 3'b001;
+  localparam trans_read   = 3'b010;
+  localparam trans_beg    = 3'b011;
+  localparam trans_end    = 3'b100;
+
+  reg [2:0] cur_state;
+\end{lstlisting}
+
+Maszyna stanów transakcji SPI ma 5 dozwolonych stanów. Jest to 3-bitowa maszyna stanów, ze stanami takimi jak:
+
+\begin{itemize}
+  \item \textbf{idle} : Stan czekania na rozpoczęcie transmisji SPI. Podczas zmiany stanu logicznego sygnału trans\_beg zmieniamy stan wewnętrzny na trans\_beg, oraz zaczytujemy do rejestrów wewnętrznych długość transmisji na MISO oraz MOSI.
+
+\begin{lstlisting}[language=verilog]
+ idle :
+    begin
+      if (old_start != start_trans) begin
+        old_start     <= start_trans;
+        next_state    <= trans_beg;
+
+        in_bytes_counter    <= in_bytes_count;
+        out_bytes_counter   <= out_bytes_count;
+
+        trans_done          <= 1'b0;
+      end
+
+      cs <= 1'b1;
+    end
+  trans_beg :
+\end{lstlisting}
+
+
+  \item \textbf{trans\_beg} : Stan rozpoczęcia transakcji. W tym stanie sterujemy sygnał CS na stan logiczny 0, oraz sygnał wewnętrzny en\_out również jest ustawiany na 0. Sygnał ten jest używany do włączenia zegara na pinie sck\_out. Stan wewnętrzny programu jest tez zmieniany na stan trans\_write.
+
+\begin{lstlisting}[language=verilog]
+ assign sck_out = ((en_out == 1'b0) ? sck_in : 1'b1);
+
+ ...
+
+ trans_beg :
+      begin
+        cs          <= 1'b0;
+        en_out      <= 1'b0;
+
+        next_state  = trans_write;
+      end
+\end{lstlisting}
+
+  \item \textbf{trans\_write} : Stan wypisywania danych na szyne MOSI. W tym stanie po kolei wypisujemy dane zaczynając od MSB najbardziej znaczącego bajtu. Używamy do tego wewnętrznych stanów in\_bytes\_counter oraz bit\_count. Po zakończeniu transmisji zmieniamy stan na trans\_read.
+
+\begin{lstlisting}[language=verilog]
+trans_write :
+    begin
+      if (in_bytes_counter == 0) begin
+        if (out_bytes_counter == 0) begin
+          bit_counter = 3'b111;
+
+          next_state = trans_end;
+        end else begin
+          bit_counter = 3'b111;
+
+          next_state = trans_read;
+        end
+      end else begin
+        if (bit_counter == 3'b000) begin
+          bit_counter = 3'b111;
+
+          in_bytes_counter = in_bytes_counter - 1;
+
+          if (in_bytes_counter == 0) begin
+            bit_counter = 3'b111;
+
+            next_state = trans_read;
+          end
+        end else begin
+          bit_counter = bit_counter - 1;
+        end
+      end
+    end
+\end{lstlisting}
+
+Warto zauważyć, że wszystkie powyższe operacje odbywają się w bloku always, który reaguje na zbocze narastające sygnału sck\_in. Pod koniec tego bloku aktualizujemy stan wewnętrznej maszyny stanów.
+
+\begin{lstlisting}[language=verilog]
+
+always @(posedge sck_in) begin
+  begin
+    case (cur_state):
+
+    ...
+
+    endcase
+
+    cur_state <= next_state.
+  end
+end
+
+\end{lstlisting}
+
+Jedyne operacje reagujące na zbocze opadające to samo wypisywanie danych na szyne MOSI. Musi tak być, aby stan był stabilny podczas zbocza narastającego sygnału sck\_in, w którym to są zczytywane dane przez obie strony transakcji.
+
+\begin{lstlisting}[language=verilog]
+always @(negedge sck_in) begin
+  if (cur_state == trans_write) begin
+    mosi <= in_bytes[(in_bytes_counter - 1)*8 + bit_counter];
+  end
+end
+\end{lstlisting}
+
+  \item \textbf{trans\_read} : Stan zczytywania danych z szyny MISO. W tym stanie po kolei zczytujemy dane zaczynając od MSB najbardziej znaczącego bajtu. Używamy do tego wewnętrznych stanów out\_bytes\_counter oraz bit\_count. Po zakończeniu transmisji zmieniamy stan na trans\_end.
+
+\begin{lstlisting}[language=verilog]
+trans_read :
+    begin
+      out_bytes[(out_bytes_counter - 1)*8 + bit_counter] <= miso;
+      if (out_bytes_counter == 2'b00) begin
+        next_state  = trans_end;
+      end else begin
+        if (bit_counter == 3'b000) begin
+          bit_counter = 3'b111;
+          out_bytes_counter = out_bytes_counter - 1;
+        end else begin
+          bit_counter = bit_counter - 1;
+        end
+      end
+    end
+\end{lstlisting}
+
+  \item \textbf{trans\_end} : Stan kończenia transmisji, w którym ustawiamy następny stan na idle oczekując na rozpoczęcie kolejnej transmisji. Ustawiamy także sygnał en\_out na 1, aby wyłączyć sygnął zegarowy, oraz sygnał trans\_done aby zasygnalizować zakończenie transmisji. Wysterowanie sygnału cs na stan 1 następuje już w stanie idle, ponieważ specyfikacja hardware-owa sterownika termopary oczekuje offsetu czasowego między wysterowaniem sygnału sck\_out na 1 oraz cs na 1.
+
+\begin{lstlisting}[language=verilog]
+trans_end :
+     begin
+       if (sck_in == 1'b1) begin
+         next_state = idle;
+
+         en_out     <= 1'b1;
+         trans_done <= 1'b1;
+       end
+     end
+  endcase
+\end{lstlisting}
+\end{itemize}
+
+\section{Opis kodu oraz stanów Głównej maszyny stanów}
+
+\subsection*{Opis wejść i wyjść}
+
+\begin{lstlisting}[language=verilog]
+    module top
+  (
+    input btn_0,
+    input sys_clk_pin,
+    input phy_miso,
+
+    output led_0,
+    output phy_sck,
+    output phy_mosi,
+    output phy_cs,
+    output [2:0]led,
+
+    output [3:0] control_out_pins,
+    output [6:0] display_out_pins
+  );
+\end{lstlisting}
+
+Moduł przyjmuje następujące wejścia i wyjścia:
+\begin{itemize}
+    \item \textbf{Wejścia}:
+    \begin{itemize}
+        \item \texttt{sys\_clk\_pin}: Wygenerowany sygnał zegarowy.
+        \item \texttt{phy\_miso}: Pin MISO.
+    \end{itemize}
+    \item \textbf{Wyjścia}:
+    \begin{itemize}
+        \item \texttt{led\_0}: Sygnalizuje przez miganie leda rozpoczęcie transmisji.
+        \item \texttt{phy\_sck}: Pin SCK.
+        \item \texttt{phy\_mosi}: Pin MOSI.
+        \item \texttt{phy\_cs}: Pin CS.
+        \item \texttt{led[2:0]}: Ledy na płytce sygnalizujące aktualny stan głównej maszyny stanów.
+
+        \item \texttt{[3:0] control\_out\_pins}: display <mehiko>
+        \item \texttt{[6:0] display\_out\_pins}: display <mehiko>
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Inicjalizacja sygnałów wewnętrznych i zewnętrznych}
+
+\begin{lstlisting}[language=verilog]
+initial begin
+  in_bytes_count    =     2'b01;
+  out_bytes_count   =     2'b01;
+  in_bytes          =     8'h01;
+  led_reg           =     1'b0;
+  cur_state         = check_con;
+  en_dis            = 1'b0;
+end
+\end{lstlisting}
+
+\subsection*{Stany głównej maszyny stanów}
+
+\begin{lstlisting}[language=verilog]
+localparam check_con     = 3'b000;
+localparam set_options   = 3'b001;
+localparam chk_options   = 3'b010;
+localparam read_temp     = 3'b011;
+\end{lstlisting}
+
+Maszyna stanów transakcji SPI ma 4 dozwolonych stanów. Jest to 2-bitowa maszyna stanów, ze stanami takimi jak:
+
+\begin{itemize}
+  \item \textbf{check\_con} : W tym stanie wysyłamy poprzez interfejs SPI do czujnika termopary prośbe o sczytanie rejestru o znanej zawartości, w celu sprawdzenia poprawności transmisji. Kiedy Wartość oczekiwana jest otrzymana  przechodzimy do stanu set\_options.
+
+\begin{lstlisting}[language=verilog]
+check_con:
+      begin
+        if (out_bytes[7:0] == 8'h03) begin
+          cur_state   <= set_options;
+          in_bytes_count        <= 3;
+          out_bytes_count       <= 0;
+          in_bytes[7:0]         <= 8'h03;
+          in_bytes[15:8]        <= 8'h81;
+          in_bytes[23:16]       <= 8'h80;
+        end
+        led_reg     <= ~led_reg;
+      end
+\end{lstlisting}
+
+  \item \textbf{set\_options oraz chk\_options} : W tych stanach wysyłamy poprzez interfejs SPI do czujnika termopary konfiguracje, w celu ustawienia typu termopary na typ K. Następnie sprawdzamy czy dane zostały zapisane w rejestrach i przechodzimy do stanu read\_temp.
+
+\begin{lstlisting}[language=verilog]
+set_options:
+      begin
+          in_bytes_count        <= 3;
+          out_bytes_count       <= 0;
+          in_bytes[7:0]         <= 8'h03;
+          in_bytes[15:8]        <= 8'h81;
+          in_bytes[23:16]       <= 8'h80;
+          led_reg               <= 1'b1;
+          cur_state             <= chk_options;
+      end
+    chk_options:
+      begin
+          in_bytes_count        <= 2'b01;
+          out_bytes_count       <= 2'b10;
+          in_bytes[7:0]         <= 8'h00;
+          if (out_bytes[15:8] == 8'h81 && out_bytes[7:0] == 8'h03) begin
+            cur_state <= read_temp;
+            en_dis    <= 1'b1;
+          end
+      end
+\end{lstlisting}
+
+  \item \textbf{read\_temp} : W tym stanie w kółko sczytujemy temperature z rejestru temperatury termopary.
+
+\begin{lstlisting}[language=verilog]
+ read_temp:
+      begin
+          in_bytes_count        <= 2'b01;
+          out_bytes_count       <= 2'b10;
+          in_bytes[7:0]         <= 8'h0C;
+          if (out_bytes[15:8] == 8'h81 && out_bytes[7:0] == 8'h03) begin
+            cur_state <= read_temp;
+          end
+      end
+\end{lstlisting}
+
+<mehiko> dokoncz tu prosze koncowke opisu tego, czyli sygnaly w inicjalizacji roznych modulow.
+
+\end{itemize}
+
+\section{Kod transofmatora na BCD <mehiko>}
+
+\section{Kod wyświetlacza 7-seg <mehiko>}
+
+\section{Testowanie i debugowanie}
+\begin{itemize}
+    \item Przeprowadzenie symulacji funkcjonalnych modułów (np. SPI, wyświetlacza). \newline
+    Wartość takich testów niestety jest niska, ponieważ testy przechodzące w symulacji nie mają żadnego pokrycia w rzeczywistym sprzęcie, często nie potrafiąc nawet dokonać syntezy albo implementacji. Przykładowy test:
+
+\begin{lstlisting}[language=verilog]
+ module presc_tb();
+
+reg clk_in;
+wire clk_out;
+
+presc presc_0(
+               .clk_in_p(clk_in),
+               .clk_out_p(clk_out)
+             );
+
+integer i;
+
+initial begin
+  clk_in = 1'b0;
+  $monitor("time:%d clk_out:%b", $time, clk_out);
+  test_presc();
+  $finish;
+end
+
+task test_presc();
+  begin
+    for(i=0; i<256; i=i+1) begin
+      clk_in = ~clk_in;
+      #1;
+      clk_in = ~clk_in;
+      #1;
+    end
+  end
+endtask
+
+endmodule
+
+\end{lstlisting}
+
+    \item Testowanie systemu na fizycznej płytce FPGA z podłączonym analizatorem stanów logicznych.
+    Wartość takich testów jest już jak najbardziej odczuwalna. Po kolei łącząc kolejne małe części programu jesteśmy w stanie odczytywać fizyczne wartości pinów : <mehiko> wklej tu prosze fote z analizatora.
+    \item Testowanie systemu na fizycznej płytce FPGA z podłączonym czujnikiem i wyświetlaczem.
+    <mehiko> tu bedzie trzeba wrzucic zdjecie, pingnij mnie
+\end{itemize}
+
+\section{Moduły poboczne}
+
+Do realizacji powyższego zadania potrzebne były pomniejsze moduły, przez specyfikacje hardware-ową czujnika termopary. Są to :
+
+\begin{itemize}
+  \item \textbf{prescaler} : Służy do zmniejszania częstotliwośći sygnału zegarowego:
+  \begin{lstlisting}[language=verilog]
+    module presc(
+              input wire clk_in_p,
+              output reg clk_out_p
+            );
+
+  parameter value = 65535;
+  
+  localparam bit_count = $clog2(value);
+  
+  reg [bit_count:0]count;
+  
+  initial begin
+    count       <= 0;
+    clk_out_p   <= 1'b0;
+  end
+  
+  always @(posedge clk_in_p) begin
+    if(count < (value/2)) begin
+      count = count + 1;
+    end else begin
+      count = 0;
+      clk_out_p = ~clk_out_p;
+    end
+  end
+  
+  endmodule
+  \end{lstlisting}
+
+  \item \textbf{timer} : Służy do zmiany stanu na wyjściu po określonej ilości czasu.
+  \begin{lstlisting}[language=verilog]
+  module timer (
+              input wire clk_in,
+              output reg sig_out
+             );
+
+parameter time_ms = 1000;
+
+localparam clk_per_ms = 180000;
+localparam reset_count = (clk_per_ms*time_ms);
+localparam bit_count = $clog2(reset_count);
+
+reg [bit_count:0]counter;
+
+initial begin
+  counter <= 0;
+  sig_out <= 1'b0;
+end
+
+always @(posedge clk_in) begin
+  if (counter < reset_count) begin
+    counter = counter + 1;
+  end else begin
+    counter = 0;
+    sig_out = ~sig_out;
+  end
+end
+
+endmodule
+  \end{lstlisting}
+  \item \textbf{counter} : Służy do liczenia w góre, zwiększając licznik o jeden co zadany kwant czasu.
+  \begin{lstlisting}[language=verilog]
+  module counter(
+    input wire clk,
+    input wire rst,
+    output reg [23:0] count
+    );
+
+    initial begin
+        count[23:0] <= 24'h000;
+    end
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            count <= 24'h000; // Reset count to 0
+        end else if (count == 24'd999900) begin
+            count <= 24'h000;
+        end else begin
+            count <= count + 1; // Increment count
+        end
+    end
+
+endmodule
+  \end{lstlisting}
+\end{itemize}
+
+\section{Wynik końcowy}
+Zaprojektowany system wyświetla zmierzoną temperaturę w czasie rzeczywistym na wyświetlaczu 7-segmentowym, zapewniając precyzyjne i stabilne pomiary dzięki wbudowanej kompensacji i filtracji danych.
+
+\end{document}
